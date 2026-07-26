@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" data-palette="peach">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>一鍵精靈 OneClick Wizard</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="ocw-app">
+    <!-- ============ 頂部工具列 ============ -->
+    <header class="ocw-header">
+      <div class="ocw-logo"><img src="icons/icon48.png" alt="一鍵精靈" width="26" height="26" /></div>
+      <div class="ocw-title-block">
+        <p class="ocw-title">一鍵精靈 OneClick Wizard</p>
+        <p class="ocw-subtitle">多帳號・多網站・一鍵啟動</p>
+      </div>
+
+      <div class="ocw-toolbar">
+        <div class="ocw-palette-switch" id="paletteSwitch"></div>
+        <button class="ocw-btn" id="btnDefaultAccount">🔑 預設帳密</button>
+        <button class="ocw-btn" id="btnBulkImport">📋 批量貼上</button>
+        <button class="ocw-btn" id="btnAddGroup">➕ 新增群組</button>
+        <button class="ocw-btn" id="btnAddSite">🌐 新增網站</button>
+        <button class="ocw-btn" id="btnDataIO">📦 備份／還原</button>
+      </div>
+    </header>
+
+    <main class="ocw-main">
+      <div class="ocw-toolbar" style="margin-bottom:16px;">
+        <button class="ocw-btn ocw-btn-primary" id="btnOpenAll">🕹️ 一鍵開啟全部</button>
+        <button class="ocw-btn ocw-btn-danger" id="btnLogoutAll">🔒 一鍵登出全部</button>
+        <span class="ocw-badge" id="siteCountBadge">共 0 個網站</span>
+        <label class="ocw-select-all-label">
+          <input type="checkbox" id="selectAllCheckbox" /> 全選網站
+        </label>
+      </div>
+
+      <div class="ocw-bulk-bar ocw-hidden" id="bulkActionBar">
+        <span id="bulkSelectedCount">已選取 0 個網站</span>
+        <button class="ocw-btn ocw-btn-sm" id="btnBulkClearSelection">取消選取</button>
+        <button class="ocw-btn ocw-btn-sm ocw-btn-danger" id="btnBulkDeleteSelected">🗑️ 刪除已選取</button>
+      </div>
+
+      <div class="ocw-warning-box">
+        ⚠️ 安全提醒：為方便快速登入，本工具將帳號密碼以「明文」儲存在瀏覽器本機（chrome.storage.local）。
+        請勿在公用電腦上使用，並避免存放高風險帳號（如銀行、公司核心系統）之密碼。
+      </div>
+
+      <div id="groupsContainer"></div>
+
+      <div class="ocw-section-title">📂 未分組網站</div>
+      <div class="ocw-group">
+        <div class="ocw-group-body" id="ungroupedContainer"></div>
+      </div>
+
+      <div class="ocw-empty-state ocw-hidden" id="emptyState">
+        <div class="ocw-empty-emoji">👻</div>
+        <!-- 幽靈 emoji 與 Pac-Man 圖示相呼應 -->
+        <p>目前還沒有任何網站，點選右上角「新增網站」開始使用吧！</p>
+      </div>
+    </main>
+  </div>
+
+  <!-- ============ Modal：新增／編輯網站 ============ -->
+  <div class="ocw-modal-backdrop ocw-hidden" id="siteModalBackdrop">
+    <div class="ocw-modal">
+      <h2 id="siteModalTitle">🌐 新增網站</h2>
+      <p class="ocw-modal-desc">設定網站的名稱、網址、帳號密碼與所屬群組。</p>
+
+      <div class="ocw-field">
+        <label>網站名稱</label>
+        <input type="text" id="siteName" placeholder="例如：公司 Gmail" />
+      </div>
+      <div class="ocw-field">
+        <label>網址（含 https://）</label>
+        <input type="url" id="siteUrl" placeholder="https://mail.google.com" />
+      </div>
+      <div class="ocw-field">
+        <label>備用網址（選填，每行一個）</label>
+        <textarea id="siteBackupUrls" placeholder="https://mail.google.com/mail/u/1&#10;https://mail.google.com/mail/u/2" style="min-height:60px;"></textarea>
+        <p style="font-size:11.5px;color:var(--ocw-text-dim);margin:6px 0 0;">
+          一鍵開啟時，系統會從「主要網址＋備用網址」中隨機挑一個開啟，避免單一網址異常時整組流程卡住。
+        </p>
+      </div>
+      <div class="ocw-field">
+        <label>所屬群組</label>
+        <select id="siteGroup"></select>
+      </div>
+
+      <div class="ocw-checkbox-row">
+        <input type="checkbox" id="siteUseDefault" />
+        <label for="siteUseDefault" style="margin:0;">強制套用「預設帳號密碼」（未勾選時，留空欄位會自動使用預設帳密）</label>
+      </div>
+
+      <div class="ocw-field">
+        <label>帳號</label>
+        <input type="text" id="siteUsername" placeholder="帳號 / Email" autocomplete="off" />
+      </div>
+      <div class="ocw-field">
+        <label>密碼（明文儲存，請注意安全）</label>
+        <input type="text" id="sitePassword" placeholder="密碼" autocomplete="off" />
+      </div>
+
+      <div class="ocw-section-title" style="margin-top:6px;">登出設定（選填）</div>
+      <div class="ocw-field">
+        <label>自訂登出網址</label>
+        <input type="url" id="siteLogoutUrl" placeholder="https://example.com/logout（留空則以清除 Cookie 方式登出）" />
+      </div>
+      <div class="ocw-field">
+        <label>登出按鈕 CSS 選擇器</label>
+        <input type="text" id="siteLogoutSelector" placeholder="例如：#logout-button" />
+      </div>
+
+      <div class="ocw-modal-actions">
+        <button class="ocw-btn" data-close-modal="siteModalBackdrop">取消</button>
+        <button class="ocw-btn ocw-btn-primary" id="btnSaveSite">儲存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ Modal：新增／編輯群組 ============ -->
+  <div class="ocw-modal-backdrop ocw-hidden" id="groupModalBackdrop">
+    <div class="ocw-modal">
+      <h2 id="groupModalTitle">📁 新增群組</h2>
+      <p class="ocw-modal-desc">群組會對應到 Chrome 分頁群組的名稱與顏色。</p>
+
+      <div class="ocw-field">
+        <label>群組名稱</label>
+        <input type="text" id="groupName" placeholder="例如：客戶 A 帳號組" />
+      </div>
+      <div class="ocw-field">
+        <label>群組顏色</label>
+        <div class="ocw-color-grid" id="groupColorGrid"></div>
+      </div>
+
+      <div class="ocw-modal-actions">
+        <button class="ocw-btn" data-close-modal="groupModalBackdrop">取消</button>
+        <button class="ocw-btn ocw-btn-primary" id="btnSaveGroup">儲存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ Modal：批量貼上網址 ============ -->
+  <div class="ocw-modal-backdrop ocw-hidden" id="bulkModalBackdrop">
+    <div class="ocw-modal ocw-modal-wide">
+      <h2>📋 批量貼上網址</h2>
+      <p class="ocw-modal-desc">每行貼上一個網址，系統會自動解析並建立網站設定（可事後個別編輯帳密）。</p>
+
+      <div class="ocw-field">
+        <label>網址清單（一行一個）</label>
+        <textarea id="bulkUrls" placeholder="https://mail.google.com&#10;https://github.com&#10;https://slack.com"></textarea>
+      </div>
+      <div class="ocw-field">
+        <label>加入群組</label>
+        <select id="bulkGroup"></select>
+      </div>
+
+      <div class="ocw-modal-actions">
+        <button class="ocw-btn" data-close-modal="bulkModalBackdrop">取消</button>
+        <button class="ocw-btn ocw-btn-primary" id="btnBulkImportConfirm">解析並新增</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ Modal：預設帳號密碼 ============ -->
+  <div class="ocw-modal-backdrop ocw-hidden" id="defaultAccountModalBackdrop">
+    <div class="ocw-modal">
+      <h2>🔑 預設帳號密碼</h2>
+      <p class="ocw-modal-desc">
+        任何「未填寫帳號密碼」的網站，會自動統一使用這組預設帳密登入，不需額外設定。
+        若要讓已個別設定過帳密的網站也強制改用預設帳密，可使用下方「套用到所有網站」。
+      </p>
+
+      <div class="ocw-warning-box">⚠️ 密碼將以明文儲存於本機，請確保裝置安全。</div>
+
+      <div class="ocw-field">
+        <label>預設帳號</label>
+        <input type="text" id="defaultUsername" autocomplete="off" />
+      </div>
+      <div class="ocw-field">
+        <label>預設密碼</label>
+        <input type="text" id="defaultPassword" autocomplete="off" />
+      </div>
+
+      <div class="ocw-modal-actions" style="justify-content:space-between;">
+        <button class="ocw-btn ocw-btn-ghost-cyan" id="btnApplyDefaultToAll">📤 套用到所有網站</button>
+        <div style="display:flex;gap:8px;">
+          <button class="ocw-btn" data-close-modal="defaultAccountModalBackdrop">取消</button>
+          <button class="ocw-btn ocw-btn-primary" id="btnSaveDefaultAccount">儲存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ Modal：備份／還原 ============ -->
+  <div class="ocw-modal-backdrop ocw-hidden" id="dataModalBackdrop">
+    <div class="ocw-modal">
+      <h2>📦 備份／還原資料</h2>
+      <p class="ocw-modal-desc">匯出的 JSON 檔含所有網站、群組與帳號密碼，請妥善保管。</p>
+
+      <button class="ocw-btn ocw-btn-primary" id="btnExportData" style="width:100%;margin-bottom:14px;">⬇️ 匯出成 JSON 檔</button>
+
+      <div class="ocw-section-title">匯入資料</div>
+      <div class="ocw-field">
+        <label>選擇 JSON 檔</label>
+        <input type="file" id="importFileInput" accept="application/json" />
+      </div>
+      <div class="ocw-field">
+        <label>匯入模式</label>
+        <select id="importMode">
+          <option value="merge">合併（保留現有資料，新增匯入內容）</option>
+          <option value="overwrite">覆蓋（清除現有資料，改用匯入內容）</option>
+        </select>
+      </div>
+
+      <div class="ocw-modal-actions">
+        <button class="ocw-btn" data-close-modal="dataModalBackdrop">關閉</button>
+        <button class="ocw-btn ocw-btn-primary" id="btnImportConfirm">開始匯入</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ Modal：通用確認 ============ -->
+  <div class="ocw-modal-backdrop ocw-hidden" id="confirmModalBackdrop">
+    <div class="ocw-modal">
+      <h2 id="confirmModalTitle">確認操作</h2>
+      <p class="ocw-modal-desc" id="confirmModalDesc">確定要執行這個操作嗎？</p>
+      <div class="ocw-modal-actions">
+        <button class="ocw-btn" data-close-modal="confirmModalBackdrop">取消</button>
+        <button class="ocw-btn ocw-btn-danger" id="btnConfirmYes">確定</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="ocw-toast-stack" id="toastStack"></div>
+
+  <script src="storage.js"></script>
+  <script src="manager.js"></script>
+</body>
+</html>
